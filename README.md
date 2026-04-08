@@ -1,75 +1,86 @@
-# IdeaGen Pro
+# Medif — MediNotes Pro
 
-**AI-powered SaaS demo** that generates structured business ideas for the AI agent economy. The app pairs a polished Next.js marketing and product experience with a **Python FastAPI** backend that streams model output in real time—deployed as a **split frontend/backend** project on Vercel.
+**Portfolio full-stack demo:** an AI-assisted workflow for turning raw **consultation notes** into structured output—**clinical-style summary**, **provider next steps**, and a **patient-friendly email draft**—with **real-time streaming** in the browser, **authenticated APIs**, and a path to **subscription-gated** access.
 
----
-
-## Why this project (for recruiters)
-
-This repo is a small but **end-to-end product slice**: authentication, subscription gating, a streaming LLM integration, and a **polyglot** deployment (TypeScript/React + Python) rather than a single monolithic API route. It shows comfort with modern frontend tooling, secure API design, and platform-native hosting patterns.
-
-| Area | What it demonstrates |
-|------|----------------------|
-| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4, responsive landing + in-app UI |
-| **Auth** | Clerk (sign-in, session, user menu) |
-| **Monetization path** | Clerk `Protect` + `PricingTable` for plan-gated features |
-| **Backend** | FastAPI, JWT verification via `fastapi-clerk-auth`, user-scoped requests |
-| **AI** | OpenAI-compatible client (OpenRouter), **server-sent events (SSE)** streaming |
-| **Client ↔ API** | `@microsoft/fetch-event-source` consuming the stream; **React Markdown** for rich output |
-| **Deploy** | Vercel **experimental services**: Next.js at `/`, FastAPI mounted under `/api` |
+In the app, the product surface is branded **MediNotes Pro** (landing + consultation assistant). The repository is **Medif**.
 
 ---
 
-## Architecture (high level)
+## For recruiters (scan this first)
+
+| What you’re looking for | Where this repo shows it |
+|-------------------------|---------------------------|
+| **Product thinking** | Guided form (patient, visit date, free-text notes) → one coherent AI artifact with three clear sections |
+| **Full-stack TypeScript + Python** | Next.js 16 / React 19 UI; FastAPI service with Pydantic models and JWT verification |
+| **Streaming UX** | Server-Sent Events from FastAPI; client uses `@microsoft/fetch-event-source` + **React Markdown** for live rendering |
+| **Auth in depth** | Clerk on the frontend; `fastapi-clerk-auth` + JWKS on the backend; bearer token on every generation request |
+| **Monetization / gating** | Clerk `Protect` + `PricingTable` so the assistant is behind a plan |
+| **Polyglot deploy** | Vercel **experimental services**: Next.js at `/`, FastAPI mounted under `/api` ([`vercel.json`](vercel.json)) |
+
+**One sentence:** I built a small but **end-to-end** slice—UI, secure API, LLM streaming, and hosting patterns you’d use on a real SaaS—without hiding the hard parts (auth across runtimes, streaming protocol, separate env per service).
+
+---
+
+## What the product does
+
+1. **Landing** ([`pages/index.tsx`](pages/index.tsx)) — value prop: summaries, action items, patient communications; Clerk sign-in; CTA into the app.
+2. **Assistant** ([`pages/product.tsx`](pages/product.tsx)) — authenticated users submit **patient name**, **date of visit**, and **consultation notes**; the UI streams the model response as markdown.
+3. **API** ([`api/index.py`](api/index.py)) — `POST` accepts JSON (`patient_name`, `date_of_visit`, `notes`), verifies the Clerk JWT, calls an OpenAI-compatible API with a fixed **system prompt** (three markdown sections), and streams tokens as SSE.
+
+**Important:** This is a **demo / portfolio** project. It is **not** a certified medical device, and **you must not** use it for real PHI without proper legal, security, and compliance review. UI copy about compliance is illustrative only.
+
+---
+
+## Architecture
 
 ```text
 Browser (Next.js)
-  ├── Marketing + auth UI (/)
-  └── Product page (/product): Clerk JWT → SSE to /api
-                                    │
-                                    ▼
-                          FastAPI (Python)
-                          • Verifies Clerk JWT
-                          • Streams completion from OpenRouter
+  ├── Marketing + Clerk (/)
+  └── /product: form → POST /api + Bearer JWT
+                        │
+                        ▼
+              FastAPI (Python)
+              • Clerk JWT (JWKS)
+              • OpenAI-compatible client (e.g. OpenRouter)
+              • SSE stream → markdown sections
 ```
-
-The Python API lives in [`api/index.py`](api/index.py). The product UI streams tokens into markdown in [`pages/product.tsx`](pages/product.tsx). Routing is configured in [`vercel.json`](vercel.json).
 
 ---
 
 ## Tech stack
 
-- **Frameworks:** Next.js (Pages Router), FastAPI  
-- **Languages:** TypeScript, Python  
-- **UI:** React 19, Tailwind CSS 4, `@tailwindcss/typography`  
-- **Auth & billing (Clerk):** `@clerk/nextjs`, subscription protection + pricing UI  
-- **AI:** `openai` SDK against OpenRouter; streaming responses  
-- **Markdown:** `react-markdown`, `remark-gfm`, `remark-breaks`
+| Layer | Choices |
+|-------|---------|
+| **Frontend** | Next.js 16 (Pages Router), React 19, TypeScript, Tailwind CSS 4, `@tailwindcss/typography` |
+| **Forms / UX** | `react-datepicker`, controlled inputs, loading states during stream |
+| **Auth & plans** | `@clerk/nextjs`, `Protect`, `PricingTable` |
+| **Streaming & content** | `@microsoft/fetch-event-source`, `react-markdown`, `remark-gfm`, `remark-breaks` |
+| **Backend** | FastAPI, Pydantic, `StreamingResponse`, `fastapi-clerk-auth`, `openai` SDK |
 
 ---
 
 ## Prerequisites
 
-- Node.js 20+ (aligns with current Next.js expectations)
+- Node.js 20+
 - Python 3.12+ (for local FastAPI)
-- [Clerk](https://clerk.com) application (JWT templates / JWKS for the backend)
-- [OpenRouter](https://openrouter.ai) (or compatible) API key and base URL
+- [Clerk](https://clerk.com) app (frontend keys + JWKS URL for the API)
+- OpenAI-compatible provider (e.g. [OpenRouter](https://openrouter.ai)) — API key and base URL
 
 ---
 
 ## Environment variables
 
-**Next.js (Clerk)** — use the keys from your Clerk dashboard (e.g. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and any publishable domain settings Clerk documents for your Next.js version).
+**Next.js (Clerk)** — e.g. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, plus any domain/settings Clerk documents for your Next.js version.
 
-**FastAPI (`api/index.py`)** — the backend expects:
+**FastAPI** (`api/index.py`):
 
 | Variable | Purpose |
 |----------|---------|
 | `OPENROUTER_API_KEY` | API key for the OpenAI-compatible provider |
-| `OPENROUTER_BASE_URL` | Base URL for that provider (e.g. OpenRouter) |
-| `CLERK_JWKS_URL` | Clerk JWKS URL used to verify `Authorization: Bearer` tokens |
+| `OPENROUTER_BASE_URL` | Base URL for that provider |
+| `CLERK_JWKS_URL` | Clerk JWKS URL for `Authorization: Bearer` verification |
 
-Configure these in Vercel for the Python service and locally via `.env` or your shell when running uvicorn.
+Set these for **both** the frontend and Python service on Vercel.
 
 ---
 
@@ -84,17 +95,15 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**Backend (optional, for full SSE against real auth)**
-
-Install Python dependencies and run FastAPI (from the repo root):
+**Backend** (full stack with real auth and streaming)
 
 ```bash
 pip install -r requirements.txt
-# Set OPENROUTER_*, CLERK_JWKS_URL, then e.g.:
+# export OPENROUTER_API_KEY, OPENROUTER_BASE_URL, CLERK_JWKS_URL
 uvicorn api.index:app --reload --port 8000
 ```
 
-For the **same origin** as in production (`/api` on the Next host), rely on Vercel’s split services or configure your dev proxy so `/api` forwards to the FastAPI port—otherwise point `fetchEventSource` at your local API URL during experiments.
+In development, `/api` on the Next host matches production only if you proxy to FastAPI or use your provider’s split setup; otherwise point the client at your local API URL while testing.
 
 **Production build (frontend)**
 
@@ -106,7 +115,7 @@ npm run build && npm start
 
 ## Deploy
 
-This project targets **[Vercel](https://vercel.com)** with `experimentalServices` in [`vercel.json`](vercel.json): Next.js serves the site; FastAPI is deployed as the `/api` backend. Set environment variables for **both** the frontend and the Python service in the Vercel project settings.
+Target: **[Vercel](https://vercel.com)** with `experimentalServices` in [`vercel.json`](vercel.json): Next.js serves the site; FastAPI is the `/api` backend. Configure environment variables for **each** service.
 
 ---
 
@@ -114,14 +123,15 @@ This project targets **[Vercel](https://vercel.com)** with `experimentalServices
 
 | Path | Role |
 |------|------|
-| `pages/index.tsx` | Landing: hero, pricing preview, Clerk CTAs |
-| `pages/product.tsx` | Gated idea generator + SSE + markdown |
-| `pages/_app.tsx` | `ClerkProvider` wrapper |
-| `api/index.py` | Authenticated streaming idea endpoint |
-| `vercel.json` | Frontend/backend service split |
+| `pages/index.tsx` | Landing — MediNotes Pro, feature grid, Clerk CTAs |
+| `pages/product.tsx` | Plan gate + consultation form + SSE markdown output |
+| `pages/_app.tsx` | `ClerkProvider` |
+| `pages/_document.tsx` | Default document title / meta |
+| `api/index.py` | Authenticated streaming consultation endpoint |
+| `vercel.json` | Frontend / backend service split |
 
 ---
 
 ## License
 
-Private / portfolio use unless you add an explicit license.
+MIT
