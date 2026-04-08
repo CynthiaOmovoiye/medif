@@ -16,8 +16,9 @@ In the app, the product surface is branded **MediNotes Pro** (landing + consulta
 | **Auth in depth** | Clerk on the frontend; `fastapi-clerk-auth` + JWKS on the backend; bearer token on every generation request |
 | **Monetization / gating** | Clerk `Protect` + `PricingTable` so the assistant is behind a plan |
 | **Polyglot deploy** | Vercel **experimental services**: Next.js at `/`, FastAPI mounted under `/api` ([`vercel.json`](vercel.json)) |
+| **AWS production deploy** | **AWS App Runner** — containerized app ([`Dockerfile`](Dockerfile): static Next.js export + FastAPI), env-based secrets, health checks — [live demo](https://pdd2pm3czs.us-east-1.awsapprunner.com/) |
 
-**One sentence:** I built a small but **end-to-end** slice—UI, secure API, LLM streaming, and hosting patterns you’d use on a real SaaS—without hiding the hard parts (auth across runtimes, streaming protocol, separate env per service).
+**One sentence:** I built a small but **end-to-end** slice—UI, secure API, LLM streaming, and hosting patterns you’d use on a real SaaS—without hiding the hard parts (auth across runtimes, streaming protocol, separate env per service), including a **public AWS deployment** you can click through.
 
 ---
 
@@ -115,7 +116,12 @@ npm run build && npm start
 
 ## Deploy
 
-Target: **[Vercel](https://vercel.com)** with `experimentalServices` in [`vercel.json`](vercel.json): Next.js serves the site; FastAPI is the `/api` backend. Configure environment variables for **each** service.
+### Live on AWS (App Runner)
+
+**Public URL:** [https://pdd2pm3czs.us-east-1.awsapprunner.com/](https://pdd2pm3czs.us-east-1.awsapprunner.com/)
+
+The app runs as a **single container** on **[AWS App Runner](https://aws.amazon.com/apprunner/)**:
+
 
 ---
 
@@ -127,7 +133,9 @@ Target: **[Vercel](https://vercel.com)** with `experimentalServices` in [`vercel
 | `pages/product.tsx` | Plan gate + consultation form + SSE markdown output |
 | `pages/_app.tsx` | `ClerkProvider` |
 | `pages/_document.tsx` | Default document title / meta |
-| `api/index.py` | Authenticated streaming consultation endpoint |
+| `api/index.py` | Authenticated streaming consultation endpoint (e.g. Vercel Python service) |
+| `api/server.py` | Same API + static file hosting for single-container deploy (e.g. Docker / App Runner) |
+| `Dockerfile` | Production image: Next static export + FastAPI |
 | `vercel.json` | Frontend / backend service split |
 
 ---

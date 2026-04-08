@@ -6,7 +6,14 @@ import DatePicker from 'react-datepicker';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { fetchEventSource, EventStreamContentType } from '@microsoft/fetch-event-source';
+
+class SseFatalError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'SseFatalError';
+    }
+}
 import { Protect, PricingTable, UserButton } from '@clerk/nextjs';
 
 function ConsultationForm() {
@@ -36,7 +43,7 @@ function ConsultationForm() {
         const controller = new AbortController();
         let buffer = '';
 
-        await fetchEventSource('/api', {
+        await fetchEventSource('/api/consultation', {
             signal: controller.signal,
             method: 'POST',
             headers: {
@@ -48,14 +55,40 @@ function ConsultationForm() {
                 date_of_visit: visitDate?.toISOString().slice(0, 10),
                 notes,
             }),
+            async onopen(response) {
+                const ct = response.headers.get('content-type');
+                if (
+                    response.ok &&
+                    ct?.startsWith(EventStreamContentType)
+                ) {
+                    return;
+                }
+                if (response.status === 401 || response.status === 403) {
+                    const hint =
+                        'Could not verify your session with the API. ' +
+                        'Use the same Clerk app for the UI and set CLERK_JWKS_URL on the server to that app’s JWKS URL.';
+                    setOutput(hint);
+                    throw new SseFatalError('auth');
+                }
+                if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+                    throw new SseFatalError(`http ${response.status}`);
+                }
+                throw new Error(
+                    `Expected content-type ${EventStreamContentType}, got ${ct ?? 'none'} (status ${response.status})`
+                );
+            },
             onmessage(ev) {
                 buffer += ev.data;
                 setOutput(buffer);
             },
-            onclose() { 
-                setLoading(false); 
+            onclose() {
+                setLoading(false);
             },
             onerror(err) {
+                if (err instanceof SseFatalError) {
+                    setLoading(false);
+                    throw err;
+                }
                 console.error('SSE error:', err);
                 controller.abort();
                 setLoading(false);
