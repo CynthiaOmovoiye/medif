@@ -1,40 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# IdeaGen Pro
 
-## Getting Started
+**AI-powered SaaS demo** that generates structured business ideas for the AI agent economy. The app pairs a polished Next.js marketing and product experience with a **Python FastAPI** backend that streams model output in real time—deployed as a **split frontend/backend** project on Vercel.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Why this project (for recruiters)
+
+This repo is a small but **end-to-end product slice**: authentication, subscription gating, a streaming LLM integration, and a **polyglot** deployment (TypeScript/React + Python) rather than a single monolithic API route. It shows comfort with modern frontend tooling, secure API design, and platform-native hosting patterns.
+
+| Area | What it demonstrates |
+|------|----------------------|
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4, responsive landing + in-app UI |
+| **Auth** | Clerk (sign-in, session, user menu) |
+| **Monetization path** | Clerk `Protect` + `PricingTable` for plan-gated features |
+| **Backend** | FastAPI, JWT verification via `fastapi-clerk-auth`, user-scoped requests |
+| **AI** | OpenAI-compatible client (OpenRouter), **server-sent events (SSE)** streaming |
+| **Client ↔ API** | `@microsoft/fetch-event-source` consuming the stream; **React Markdown** for rich output |
+| **Deploy** | Vercel **experimental services**: Next.js at `/`, FastAPI mounted under `/api` |
+
+---
+
+## Architecture (high level)
+
+```text
+Browser (Next.js)
+  ├── Marketing + auth UI (/)
+  └── Product page (/product): Clerk JWT → SSE to /api
+                                    │
+                                    ▼
+                          FastAPI (Python)
+                          • Verifies Clerk JWT
+                          • Streams completion from OpenRouter
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Python API lives in [`api/index.py`](api/index.py). The product UI streams tokens into markdown in [`pages/product.tsx`](pages/product.tsx). Routing is configured in [`vercel.json`](vercel.json).
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+---
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+## Tech stack
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+- **Frameworks:** Next.js (Pages Router), FastAPI  
+- **Languages:** TypeScript, Python  
+- **UI:** React 19, Tailwind CSS 4, `@tailwindcss/typography`  
+- **Auth & billing (Clerk):** `@clerk/nextjs`, subscription protection + pricing UI  
+- **AI:** `openai` SDK against OpenRouter; streaming responses  
+- **Markdown:** `react-markdown`, `remark-gfm`, `remark-breaks`
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Prerequisites
 
-To learn more about Next.js, take a look at the following resources:
+- Node.js 20+ (aligns with current Next.js expectations)
+- Python 3.12+ (for local FastAPI)
+- [Clerk](https://clerk.com) application (JWT templates / JWKS for the backend)
+- [OpenRouter](https://openrouter.ai) (or compatible) API key and base URL
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment variables
 
-## Deploy on Vercel
+**Next.js (Clerk)** — use the keys from your Clerk dashboard (e.g. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and any publishable domain settings Clerk documents for your Next.js version).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**FastAPI (`api/index.py`)** — the backend expects:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+| Variable | Purpose |
+|----------|---------|
+| `OPENROUTER_API_KEY` | API key for the OpenAI-compatible provider |
+| `OPENROUTER_BASE_URL` | Base URL for that provider (e.g. OpenRouter) |
+| `CLERK_JWKS_URL` | Clerk JWKS URL used to verify `Authorization: Bearer` tokens |
+
+Configure these in Vercel for the Python service and locally via `.env` or your shell when running uvicorn.
+
+---
+
+## Local development
+
+**Frontend**
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+**Backend (optional, for full SSE against real auth)**
+
+Install Python dependencies and run FastAPI (from the repo root):
+
+```bash
+pip install -r requirements.txt
+# Set OPENROUTER_*, CLERK_JWKS_URL, then e.g.:
+uvicorn api.index:app --reload --port 8000
+```
+
+For the **same origin** as in production (`/api` on the Next host), rely on Vercel’s split services or configure your dev proxy so `/api` forwards to the FastAPI port—otherwise point `fetchEventSource` at your local API URL during experiments.
+
+**Production build (frontend)**
+
+```bash
+npm run build && npm start
+```
+
+---
+
+## Deploy
+
+This project targets **[Vercel](https://vercel.com)** with `experimentalServices` in [`vercel.json`](vercel.json): Next.js serves the site; FastAPI is deployed as the `/api` backend. Set environment variables for **both** the frontend and the Python service in the Vercel project settings.
+
+---
+
+## Project structure (notable paths)
+
+| Path | Role |
+|------|------|
+| `pages/index.tsx` | Landing: hero, pricing preview, Clerk CTAs |
+| `pages/product.tsx` | Gated idea generator + SSE + markdown |
+| `pages/_app.tsx` | `ClerkProvider` wrapper |
+| `api/index.py` | Authenticated streaming idea endpoint |
+| `vercel.json` | Frontend/backend service split |
+
+---
+
+## License
+
+Private / portfolio use unless you add an explicit license.
